@@ -94,7 +94,7 @@ export default function EditProduct() {
         {/* Card Container */}
         <div className="bg-white border-2 border-black rounded-3xl p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden">
           {/* Subtle Amber Gradient Accents */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/50 blur-3xl -z-0 pointer-events-none" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/50 blur-3xl  pointer-events-none" />
           
           <div className="relative z-10">
             {isUpdating && (
