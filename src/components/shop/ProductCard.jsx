@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ShoppingCart, Star, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function ProductCard({ product }) {
   const router = useRouter();
@@ -32,11 +33,13 @@ export default function ProductCard({ product }) {
         className="relative h-64 overflow-hidden cursor-pointer"
         onClick={() => router.push(`/product/${slug}`)}
       >
-        <img
-          src={img}
-          alt={name}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-        />
+        <Image
+  src={img}
+  alt={name}
+  width={500}
+  height={500}
+  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+/>
         {!isAvailable && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
             <span className="bg-white text-slate-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
