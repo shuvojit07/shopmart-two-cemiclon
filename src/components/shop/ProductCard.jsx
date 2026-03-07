@@ -44,7 +44,7 @@ export default function ProductCard({ product }) {
             </span>
           </div>
         )}
-      </div>
+      </div> 
 
       {/* Content Section */}   
       <div className="p-5">
