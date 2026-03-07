@@ -1,156 +1,160 @@
-"use client";
-
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+// app/seller/products/page.jsx
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
 
-export default function ProductsPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+async function getProducts() {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/products?seller=true`, {
+      cache: "no-store",
+      headers: {
+        // If your API needs authentication → pass cookie or token here
+        // "Cookie": cookies().toString(),
+      },
+    });
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-      return;
+    if (!res.ok) {
+      console.error("Failed to fetch products:", res.status);
+      return [];
     }
 
-    if (status !== "authenticated" || session?.user?.role !== "seller")
-      return;
+    return await res.json();
+  } catch (err) {
+    console.error("getProducts error:", err);
+    return [];
+  }
+}
 
-    async function fetchProducts() {
-      try {
-        const res = await fetch("/api/products?seller=true");
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        setProducts(data);
-      } catch (err) {
-        toast.error("Failed to load products");
-      } finally {
-        setLoading(false);
-      }
-    }
+export default async function SellerProductsPage() {
+  const session = await getServerSession(authOptions);
 
-    fetchProducts();
-  }, [status, session, router]);
-
-  if (loading || status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-2">
-          <span className="loading loading-spinner loading-lg text-amber-500"></span>
-          <p className="text-sm font-medium text-slate-400">Loading Inventory...</p>
-        </div>
-      </div>
-    );
+  // ── Auth & Role protection ────────────────────────────────
+  if (!session) {
+    redirect("/login?callbackUrl=/seller/products");
   }
 
-  if (session?.user?.role !== "seller") {
+  if (session.user.role !== "seller") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-black font-semibold">
-        Access Denied: Seller Account Required
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#fafafa] py-12 px-6">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
-          <div>
-            <h1 className="text-4xl font-black text-black tracking-tight">
-              Inventory
-            </h1>
-            <p className="text-slate-500 mt-2 text-lg">
-              Manage and monitor your store products
-            </p>
-          </div>
-          <Link 
-            href="/seller/products/create" 
-            className="bg-amber-400 hover:bg-amber-500 text-black px-6 py-3 rounded-lg font-bold transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none border-2 border-black flex items-center justify-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add New Product
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-3">
+            Access Denied
+          </h2>
+          <p className="text-gray-600 mb-6">
+            This page is only available for seller accounts.
+          </p>
+          <Link href="/" className="text-blue-600 hover:underline">
+            ← Back to Home
           </Link>
         </div>
+      </div>
+    );
+  }
 
-        {/* Product Table Card */}
-        <div className="bg-white border-2 border-black rounded-xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)]">
-          {products.length === 0 ? (
-            <div className="py-20 text-center">
-              <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-slate-400">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10.125 2.25h3.75m-3.75 0a1.125 1.125 0 01-1.125 1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-5.625c0-.621-.504-1.125-1.125-1.125z" />
-                </svg>
-              </div>
-              <h3 className="text-black font-bold text-xl">No products yet</h3>
-              <p className="text-slate-500 mb-6">Your inventory is currently empty.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="table w-full border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-black bg-slate-50">
-                    <th className="py-4 px-6 text-black font-bold uppercase text-xs tracking-widest">Product Name</th>
-                    <th className="text-black font-bold uppercase text-xs tracking-widest">Price</th>
-                    <th className="text-black font-bold uppercase text-xs tracking-widest">Stock Level</th>
-                    <th className="text-black font-bold uppercase text-xs tracking-widest">Status</th>
-                    <th className="text-black font-bold uppercase text-xs tracking-widest text-right px-6">Manage</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {products.map((p) => (
-                    <tr key={p._id} className="hover:bg-amber-50/50 transition-colors group">
-                      <td className="py-5 px-6">
-                        <span className="font-bold text-black group-hover:text-amber-600 transition-colors">{p.name}</span>
-                      </td>
-                      <td className="font-medium text-slate-600">
-                        ${Number(p.price).toLocaleString()}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${p.stock > 0 ? 'bg-amber-400' : 'bg-red-500'}`}></span>
-                          <span className="font-medium text-slate-700">{p.stock} units</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`inline-block px-3 py-1 text-[10px] font-black uppercase tracking-tighter border-2 ${
-                            p.isAvailable 
-                              ? "bg-black text-amber-400 border-black" 
-                              : "bg-white text-slate-400 border-slate-200"
-                          }`}
-                        >
-                          {p.isAvailable ? "Active" : "Hidden"}
-                        </span>
-                      </td>
-                      <td className="text-right px-6">
-                        <Link
-                          href={`/seller/products/${p._id}`}
-                          className="inline-flex items-center font-bold text-sm text-black hover:bg-black hover:text-white border-2 border-black px-4 py-1.5 rounded transition-all active:scale-90"
-                        >
-                          Edit
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+  const products = await getProducts();
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Header + Add button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">My Products</h1>
+          <p className="mt-1 text-gray-500">Manage your inventory and listings</p>
         </div>
-        
-        {/* Footer Info */}
-        <p className="mt-6 text-center text-slate-400 text-sm">
-          Showing {products.length} products in your store.
-        </p>
+
+        <Link
+          href="/seller/products/create"
+          className="inline-flex items-center px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg shadow-sm transition-colors"
+        >
+          + Add New Product
+        </Link>
+      </div>
+
+      {/* Table / Empty state */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        {products.length === 0 ? (
+          <div className="py-20 px-6 text-center">
+            <p className="text-gray-500 text-lg mb-2">You haven't added any products yet</p>
+            <p className="text-gray-400 mb-6">Start by creating your first product</p>
+            <Link
+              href="/seller/products/create"
+              className="inline-block px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+            >
+              Add Your First Product
+            </Link>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                    Product
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                    Price
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                    Stock
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
+                    Status
+                  </th>
+                  <th scope="col" className="relative px-6 py-4">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {products.map((product) => (
+                  <tr key={product._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{product.name}</div>
+                      {product.category && (
+                        <div className="text-sm text-gray-500 mt-0.5">{product.category}</div>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                      $
+                      {Number(product.price).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                      {product.stock ?? 0}
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                          product.isAvailable
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {product.isAvailable ? "Active" : "Hidden"}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <Link
+                        href={`/seller/products/${product._id}`}
+                        className="text-amber-700 hover:text-amber-900"
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -58,7 +58,6 @@ const ProductSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // 🔥 IMPORTANT FIELD
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
@@ -119,6 +118,31 @@ const ProductSchema = new mongoose.Schema(
     },
 
     views: {
+      type: Number,
+      default: 0,
+    },
+
+    // 🔥 ADD THESE (Recommended)
+
+    tags: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+
+    specifications: {
+      type: Object,
+      default: {},
+    },
+
+    relatedProducts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+
+    salesCount: {
       type: Number,
       default: 0,
     },

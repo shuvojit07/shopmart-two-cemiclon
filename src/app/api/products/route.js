@@ -1,97 +1,133 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import Product from "@/models/Product";
 import { connectDB } from "@/lib/db";
-import slugify from "slugify";
-import mongoose from "mongoose";
+import Product from "@/models/Product";
+import { redis } from "@/lib/redis";
+import { calculateBoost } from "@/lib/boostRanking";
 
-/* ==========================
-   GET PRODUCTS
-========================== */
 export async function GET(req) {
+
   try {
+
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const seller = searchParams.get("seller");
 
-    if (seller === "true") {
-      const session = await getServerSession(authOptions);
-      console.log("Session in API:", JSON.stringify(session, null, 2));           // ← add
-      console.log("User ID:", session?.user?.id);                                 // ← add
+    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit")) || 12;
 
-      if (!session?.user || session.user.role !== "seller") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    const category = searchParams.get("category");
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
+    const search = searchParams.get("search");
 
-      const sellerObjectId = new mongoose.Types.ObjectId(session.user.id);
-      console.log("Querying sellerId:", sellerObjectId.toString());               // ← add
+    const cacheKey = `products:${page}:${limit}:${category}:${minPrice}:${maxPrice}:${search}`;
 
-      const products = await Product.find({
-        sellerId: sellerObjectId,
-      }).sort({ createdAt: -1 });
+    const cached = await redis.get(cacheKey);
 
-      console.log("Found products count:", products.length);                      // ← add
-      console.log("First product:", products[0]);                                 // ← add (if any)
-
-      return NextResponse.json(products);
+    if (cached) {
+      return NextResponse.json(JSON.parse(cached));
     }
 
-    // ... rest of code
-  } catch (error) {
-    console.error("GET PRODUCTS ERROR:", error);
-    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 });
-  }
-}
+    const query = {};
 
-/* ==========================
-   POST PRODUCT
-========================== */
-export async function POST(req) {
-  try {
-    const session = await getServerSession(authOptions);
+    /* CATEGORY FILTER */
 
-    if (!session?.user || session.user.role !== "seller") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (category) {
+      query.category = category;
     }
 
-    await connectDB();
+    /* PRICE FILTER */
 
-    const body = await req.json();
+    if (minPrice || maxPrice) {
+      query.price = {};
 
-    const product = await Product.create({
-      name: body.name,
-      slug: slugify(body.name + "-" + Date.now(), {
-        lower: true,
-        strict: true,
-      }),
+      if (minPrice) query.price.$gte = Number(minPrice);
+      if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
 
-      price: body.price,
-      discountPrice: body.discountPrice || null,
+    /* SEARCH */
 
-      category: body.category,
-      stock: body.stock,
-      isAvailable: body.isAvailable ?? true,
+    if (search) {
+      query.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
 
-      img: body.img,
+    const skip = (page - 1) * limit;
 
-      productDetails: body.description,
-      shortDescription: body.shortDescription || "",
+    const products = await Product.find(query)
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
-      sellerName:
-        session.user.name || session.user.email.split("@")[0],
+    /* BOOST RANKING */
 
-      sellerId: new mongoose.Types.ObjectId(session.user.id),
-    });
+    const rankedProducts = products
+      .map((p) => ({
+        ...p,
+        boost: calculateBoost(p),
+      }))
+      .sort((a, b) => b.boost - a.boost);
 
-    return NextResponse.json(product, { status: 201 });
+    const total = await Product.countDocuments(query);
+
+    const result = {
+      products: rankedProducts,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+
+    await redis.set(
+      cacheKey,
+      JSON.stringify(result),
+      "EX",
+      60
+    );
+
+    return NextResponse.json(result);
 
   } catch (error) {
-    console.error("PRODUCT CREATE ERROR:", error);
+
+    console.error("PRODUCT API ERROR:", error);
+
     return NextResponse.json(
-      { error: error.message },
+      { error: "Server error" },
       { status: 500 }
     );
   }
 }
+const product = await Product.create({
+  name: body.name,
+  slug: slugify(body.name + "-" + Date.now(), {
+    lower: true,
+    strict: true,
+  }),
+
+  price: body.price,
+  discountPrice: body.discountPrice || null,
+
+  category: body.category,
+  stock: body.stock,
+  isAvailable: body.isAvailable ?? true,
+
+  img: body.img,
+
+  productDetails: body.description,
+  shortDescription: body.shortDescription || "",
+
+  sellerName:
+    session.user.name || session.user.email.split("@")[0],
+
+  sellerId: new mongoose.Types.ObjectId(session.user.id),
+});
+
+/* CLEAR CACHE */
+
+await clearProductCache();
+
+return NextResponse.json(product, { status: 201 });
