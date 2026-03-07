@@ -44,9 +44,9 @@ export default function ProductCard({ product }) {
             </span>
           </div>
         )}
-      </div>
+      </div> 
 
-      {/* Content Section */}
+      {/* Content Section */}   
       <div className="p-5">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
