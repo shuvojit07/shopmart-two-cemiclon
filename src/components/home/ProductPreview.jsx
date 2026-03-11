@@ -1,78 +1,96 @@
 "use client";
+
 import { motion } from "framer-motion";
-import { ShoppingCart, Star, Heart } from "lucide-react";
+import { ShoppingCart, Star } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
-const products = [
-  { id: 1, name: "Premium Wireless Headphones", price: "$100", oldPrice: "$150", rating: 4.8, reviews: 124, discount: "33% OFF" },
-  { id: 2, name: "Smart Watch Series 7", price: "$120", oldPrice: "$180", rating: 4.9, reviews: 89, discount: "25% OFF" },
-  { id: 3, name: "Minimalist Leather Wallet", price: "$45", oldPrice: "$90", rating: 4.5, reviews: 56, discount: "50% OFF" },
-  { id: 4, name: "Mechanical Gaming Keyboard", price: "$150", oldPrice: "$200", rating: 4.7, reviews: 210, discount: "20% OFF" },
-];
+export default function ProductPreview({ products }) {
+  const router = useRouter();
+  const { data: session } = useSession();
 
-export default function ProductPreview() {
+  const handleAddToCart = (e, product) => {
+    // 1. e.stopPropagation use kora hoyeche jate image-er link kaj na kore
+    e.stopPropagation();
+    e.preventDefault();
+
+    if (!session) {
+      alert("Please login first to add items to cart!");
+      router.push("/login");
+      return;
+    }
+
+    // Login thakle cart logic ekhane hobe
+    console.log("Adding to cart:", product.name);
+  };
+
   return (
     <section className="py-20 bg-slate-50">
       <div className="container mx-auto px-6">
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-900">Flash Sale</h2>
-            <p className="text-slate-500 mt-2">Top deals ending soon!</p>
-          </div>
-          <button className="text-orange-600 font-bold hover:underline">View All</button>
-        </div>
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-10">
+          Flash <span className="text-amber-500">Sale</span>
+        </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {products.map((product) => (
-            <motion.div
-              key={product.id}
-              whileHover={{ y: -10 }}
-              className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 relative"
+            <div
+              key={product._id}
+              className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden group hover:shadow-xl transition-all duration-300"
             >
-              {/* Discount Badge */}
-              <div className="absolute top-4 left-4 z-10 bg-orange-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
-                {product.discount}
-              </div>
+              {/* --- IMAGE AREA (Click korle details e jabe) --- */}
+              <Link href={`/product/${product.slug}`}>
+                <div className="relative h-60 w-full overflow-hidden">
+                  <Image
+                    src={product.img}
+                    alt={product.name}
+                    fill
+                    className="object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
+                </div>
+              </Link>
 
-              {/* Wishlist Button */}
-              <button className="absolute top-4 right-4 z-10 p-2 bg-white/80 backdrop-blur-md rounded-full text-slate-400 hover:text-red-500 transition-colors">
-                <Heart size={18} />
-              </button>
+              {/* --- CONTENT AREA --- */}
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase">
+                    {product.category}
+                  </span>
+                  <div className="flex items-center gap-1 text-amber-500">
+                    <Star size={14} fill="currentColor" />
+                    <span className="text-sm font-bold text-slate-700">{product.rating || 0}</span>
+                  </div>
+                </div>
 
-              {/* Image Placeholder */}
-              <div className="h-56 bg-slate-200 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent" />
-                {/* Product Image would go here */}
-                <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">
-                  Image Preview
-                </div>
-                
-                {/* Hover Add to Cart */}
-                <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                  <button className="w-full bg-slate-900 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg">
-                    <ShoppingCart size={16} />
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
+                <Link href={`/product/${product.slug}`}>
+                  <h4 className="font-bold text-slate-900 text-lg hover:text-amber-600 transition-colors truncate">
+                    {product.name}
+                  </h4>
+                </Link>
 
-              {/* Product Info */}
-              <div className="p-5">
-                <div className="flex items-center gap-1 mb-2">
-                  <Star size={14} className="fill-amber-400 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-700">{product.rating}</span>
-                  <span className="text-xs text-slate-400">({product.reviews})</span>
+                <div className="mt-3 mb-6">
+                  <span className="text-2xl font-black text-slate-900">
+                    ${product.discountPrice || product.price}
+                  </span>
+                  {product.discountPrice && (
+                    <span className="ml-2 text-sm text-slate-400 line-through">
+                      ${product.price}
+                    </span>
+                  )}
                 </div>
-                
-                <h4 className="font-bold text-slate-800 mb-1 truncate group-hover:text-orange-600 transition-colors">
-                  {product.name}
-                </h4>
-                
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl font-black text-slate-900">{product.price}</span>
-                  <span className="text-sm text-slate-400 line-through">{product.oldPrice}</span>
-                </div>
+
+                {/* --- ADD TO CART BUTTON (Click korle page-e thakbe) --- */}
+                <button
+                  onClick={(e) => handleAddToCart(e, product)}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-200"
+                >
+                  <ShoppingCart size={18} />
+                  Add to Cart
+                </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

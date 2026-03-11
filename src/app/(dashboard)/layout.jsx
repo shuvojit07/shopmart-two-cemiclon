@@ -1,19 +1,35 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import DashboardSidebar from "@/components/layout/DashboardSidebar";
+
+import Sidebar from "@/components/dashboard/Sidebar";
+import Topbar from "@/components/dashboard/Topbar";
 
 export default async function DashboardLayout({ children }) {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user) {
+  // If not logged in → redirect to login
+  if (!session) {
     redirect("/login");
   }
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <DashboardSidebar role={session.user.role} />
-      <main className="flex-1 p-8">{children}</main>
+    <div className="flex min-h-screen bg-amber-50">
+      {/* Sidebar - Pass role to Sidebar for faster role-based menu rendering */}
+      <Sidebar role={session.user.role} />
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
+        {/* Topbar - Pass user info for profile dropdown */}
+        <Topbar user={session.user} />
+
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          {/* Subtle Page Transition Wrapper */}
+          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
