@@ -23,6 +23,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+<<<<<<< HEAD
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans bg-white text-gray-900`}
       >
@@ -37,6 +38,16 @@ export default function RootLayout({ children }) {
             <Footer />
           </Providers>
         </CartProvider>
+=======
+      <body>
+        <Providers>
+          <Navbar /> 
+          <main className="min-h-screen container mx-auto px-4 py-6">
+            {children}
+          </main>
+          <Footer />
+        </Providers>
+>>>>>>> shuvojit
       </body>
     </html>
   );
