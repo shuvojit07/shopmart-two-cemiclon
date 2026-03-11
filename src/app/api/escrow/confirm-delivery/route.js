@@ -1,3 +1,4 @@
+// src/app/api/escrow/confirm-delivery/route.js
 import { NextResponse } from "next/server";
 import Order from "@/models/Order";
 import User from "@/models/User";
@@ -14,28 +15,53 @@ export async function PATCH(req) {
 
     const { orderId } = await req.json();
 
-    // 1. Order-ti khuje ber kora
+    
     const order = await Order.findById(orderId);
-    if (!order || order.buyer.toString() !== session.user.id) {
-      return NextResponse.json({ error: "Order not found or unauthorized" }, { status: 404 });
+    
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    
+    if (order.buyer.toString() !== session.user.id) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    if (order.escrowStatus === "released") {
-      return NextResponse.json({ error: "Funds already released" }, { status: 400 });
+    if (order.escrowStatus !== "shipped") {
+      return NextResponse.json({ error: "Order status must be 'shipped' to release funds" }, { status: 400 });
     }
 
-    // 2. Update Order Status
+    
+    const payoutAmount = order.netSellerAmount || order.amount;
+
+  
     order.escrowStatus = "released";
-    await order.save();
-
-    // 3. Add funds to Seller's Wallet
-    // Amra dhore nichhi User model-e 'balance' field-ti ache
-    await User.findByIdAndUpdate(order.seller, {
-      $inc: { balance: order.amount }
+    order.status = "Completed";
+    order.deliveredAt = Date.now();
+    
+    
+    order.escrowHistory.push({
+      status: "released",
+      message: "Buyer confirmed delivery. Funds released to seller.",
+      timestamp: Date.now()
     });
 
-    return NextResponse.json({ message: "Funds released to seller successfully!" });
+    await order.save();
+
+   
+    const updatedSeller = await User.findByIdAndUpdate(
+      order.seller,
+      { $inc: { balance: payoutAmount } },
+      { new: true }
+    );
+
+    if (!updatedSeller) throw new Error("Failed to update seller balance");
+
+    return NextResponse.json({ 
+      success: true,
+      message: `৳${payoutAmount} released to seller successfully!` 
+    });
+
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("ESCROW_RELEASE_ERROR:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -1,31 +1,35 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
+"use client";
+import React from 'react';
+import { useSession } from "next-auth/react";
+import Sidebar from '@/components/dashboard/Sidebar'; 
+import Topbar from '@/components/dashboard/Topbar'; 
 
-import Sidebar from "@/components/dashboard/Sidebar";
-import Topbar from "@/components/dashboard/Topbar";
+export default function DashboardLayout({ children }) {
+  const { data: session, status } = useSession();
 
-export default async function DashboardLayout({ children }) {
-  const session = await getServerSession(authOptions);
-
-  // If not logged in → redirect to login
-  if (!session) {
-    redirect("/login");
+  
+  if (status === "loading") {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-amber-500 border-slate-100"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-h-screen bg-amber-50">
-      {/* Sidebar - Pass role to Sidebar for faster role-based menu rendering */}
-      <Sidebar role={session.user.role} />
+    <div className="flex min-h-screen bg-slate-50/50">
+     
+      <Sidebar />
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col">
-        {/* Topbar - Pass user info for profile dropdown */}
-        <Topbar user={session.user} />
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-          {/* Subtle Page Transition Wrapper */}
-          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
+      <div className="flex-1 flex flex-col min-w-0">
+        
+    
+        <Topbar user={session?.user} />
+
+      
+        <main className="p-4 md:p-10 overflow-y-auto h-[calc(100vh-80px)]">
+          <div className="max-w-[1400px] mx-auto">
             {children}
           </div>
         </main>

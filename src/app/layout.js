@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
           <Providers>
             <Navbar />
 
-            <div className="pt-20">
+            <div className="pt-14">
               <main className="min-h-screen px-4 py-6">{children}</main>
             </div>
 
