@@ -22,7 +22,7 @@ export default function ConfirmDeliveryBtn({ orderId }) {
 
       if (res.ok) {
         alert("Success! Funds released.");
-        router.refresh(); // UI update korar jonno
+        router.refresh(); 
       }
     } catch (err) {
       alert("Error confirming delivery");
