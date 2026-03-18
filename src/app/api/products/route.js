@@ -1,64 +1,126 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import Product from "@/models/Product";
 import { connectDB } from "@/lib/db";
+import Product from "@/models/Product";
+import { redis } from "@/lib/redis";
+import { calculateBoost } from "@/lib/boostRanking";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import slugify from "slugify";
 import mongoose from "mongoose";
 
-/* ==========================
-   GET PRODUCTS
-========================== */
+
+async function clearProductCache() {
+  try {
+    const keys = await redis.keys("products:*");
+    if (keys.length > 0) {
+      await redis.del(keys);
+    }
+  } catch (error) {
+    console.error("Redis Cache Clear Error:", error);
+  }
+}
+
+// --- GET: Fetch All Products with Filtering & Caching ---
 export async function GET(req) {
   try {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const seller = searchParams.get("seller");
+    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit")) || 12;
+    const category = searchParams.get("category");
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
+    const search = searchParams.get("search");
 
-    if (seller === "true") {
-      const session = await getServerSession(authOptions);
-      console.log("Session in API:", JSON.stringify(session, null, 2));           // ← add
-      console.log("User ID:", session?.user?.id);                                 // ← add
+ 
+    const cacheKey = `products:${page}:${limit}:${category}:${minPrice}:${maxPrice}:${search}`;
 
-      if (!session?.user || session.user.role !== "seller") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const sellerObjectId = new mongoose.Types.ObjectId(session.user.id);
-      console.log("Querying sellerId:", sellerObjectId.toString());               // ← add
-
-      const products = await Product.find({
-        sellerId: sellerObjectId,
-      }).sort({ createdAt: -1 });
-
-      console.log("Found products count:", products.length);                      // ← add
-      console.log("First product:", products[0]);                                 // ← add (if any)
-
-      return NextResponse.json(products);
+ 
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(JSON.parse(cached));
     }
 
-    // ... rest of code
+    const query = {};
+
+   
+    if (category) {
+      query.category = category;
+    }
+
+ 
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = Number(minPrice);
+      if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
+
+  
+    if (search) {
+      query.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
+
+    const skip = (page - 1) * limit;
+
+  
+    const products = await Product.find(query)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+
+    const rankedProducts = products
+      .map((p) => ({
+        ...p,
+        boost: calculateBoost(p),
+      }))
+      .sort((a, b) => b.boost - a.boost);
+
+    const total = await Product.countDocuments(query);
+
+    const result = {
+      products: rankedProducts,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+
+ 
+    await redis.set(
+      cacheKey,
+      JSON.stringify(result),
+      "EX",
+      60
+    );
+
+    return NextResponse.json(result);
+
   } catch (error) {
-    console.error("GET PRODUCTS ERROR:", error);
-    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 });
+    console.error("PRODUCT GET API ERROR:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-/* ==========================
-   POST PRODUCT
-========================== */
+// --- POST: Create New Product (Seller Only) ---
 export async function POST(req) {
   try {
+    await connectDB();
     const session = await getServerSession(authOptions);
 
-    if (!session?.user || session.user.role !== "seller") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (!session || session.user.role?.toLowerCase() !== "seller") {
+      return NextResponse.json({ error: "Only sellers can add products" }, { status: 401 });
     }
 
-    await connectDB();
-
     const body = await req.json();
+
 
     const product = await Product.create({
       name: body.name,
@@ -66,32 +128,25 @@ export async function POST(req) {
         lower: true,
         strict: true,
       }),
-
-      price: body.price,
-      discountPrice: body.discountPrice || null,
-
+      price: Number(body.price),
+      discountPrice: body.discountPrice ? Number(body.discountPrice) : null,
       category: body.category,
-      stock: body.stock,
+      stock: Number(body.stock),
       isAvailable: body.isAvailable ?? true,
-
       img: body.img,
-
-      productDetails: body.description,
+      productDetails: body.description, 
       shortDescription: body.shortDescription || "",
-
-      sellerName:
-        session.user.name || session.user.email.split("@")[0],
-
+      sellerName: session.user.name || session.user.email.split("@")[0],
       sellerId: new mongoose.Types.ObjectId(session.user.id),
     });
+
+   
+    await clearProductCache();
 
     return NextResponse.json(product, { status: 201 });
 
   } catch (error) {
-    console.error("PRODUCT CREATE ERROR:", error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    console.error("PRODUCT POST API ERROR:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -7,17 +7,13 @@ import User from "@/models/User";
 
 export const authOptions = {
   providers: [
-    // =========================
-    // GOOGLE PROVIDER
-    // =========================
+    // GOOGLE LOGIN
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
 
-    // =========================
-    // CREDENTIALS PROVIDER
-    // =========================
+    // EMAIL + PASSWORD LOGIN
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -32,13 +28,10 @@ export const authOptions = {
           return null;
         }
 
-        const user = await User.findOne({
-          email: credentials.email,
-        });
+        const user = await User.findOne({ email: credentials.email });
 
         if (!user) return null;
 
-        // If user registered via Google (no password)
         if (!user.password) return null;
 
         const isMatch = await bcrypt.compare(
@@ -63,44 +56,43 @@ export const authOptions = {
   },
 
   callbacks: {
-    // =========================
-    // GOOGLE AUTO USER CREATE
-    // =========================
+    // GOOGLE LOGIN → create user if not exists
     async signIn({ user, account }) {
-      if (account.provider === "google") {
+      if (account?.provider === "google") {
         await connectDB();
 
-        const existingUser = await User.findOne({
-          email: user.email,
-        });
+        const existingUser = await User.findOne({ email: user.email });
 
         if (!existingUser) {
           await User.create({
             name: user.name,
             email: user.email,
-            role: "buyer", // default role
+            role: "buyer",
           });
         }
       }
-
       return true;
     },
 
-    // =========================
-    // JWT CALLBACK
-    // =========================
+    // JWT TOKEN
     async jwt({ token, user }) {
+      await connectDB();
+
       if (user) {
         token.id = user.id;
-        token.role = user.role || "buyer";
+      }
+
+      const dbUser = await User.findOne({ email: token.email });
+
+      if (dbUser) {
+        token.role = dbUser.role;
+        token.id = dbUser._id.toString();
       }
 
       return token;
     },
 
-    // =========================
-    // SESSION CALLBACK
-    // =========================
+    // SESSION
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
